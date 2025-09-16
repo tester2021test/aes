@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Local AES-256 Encryptor — AES-GCM Offline</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; object-src 'none';">
 <style>
 :root{--accent:#0ea5e9;--radius:16px;--bg:#eef6ff;--bg-gradient:linear-gradient(45deg, #eef6ff, #f0f9ff);--text:#111;--section-bg:#fff;--border:#e6eef6;--lead:#444;--note:#555;--card-bg:linear-gradient(135deg, #f0f9ff, #fff);--shadow:0 6px 16px rgba(0,0,0,0.08);--shadow-sm:0 2px 8px rgba(0,0,0,0.04);}
 .dark-mode{--bg:#1a1a2e;--bg-gradient:linear-gradient(45deg, #16162a, #232a4a);--text:#f0f0f0;--section-bg:#2d2d4f;--border:#3a3a5a;--lead:#ccc;--note:#aaa;--card-bg:linear-gradient(135deg, #2d2d4f, #3a3a5a);--shadow:0 6px 16px rgba(0,0,0,0.3);--shadow-sm:0 2px 8px rgba(0,0,0,0.2);}
@@ -104,6 +105,7 @@ button:active{transform:translateY(1px);box-shadow:none;}
             <input id="exportedKey" readonly placeholder="No key yet">
             <button type="button" onclick="copyText('exportedKey')" class="copy-btn">Copy</button>
         </div>
+        <button id="clearKeyBtn">Clear Key</button>
     </div>
     
     <div class="section">
@@ -176,6 +178,7 @@ button:active{transform:translateY(1px);box-shadow:none;}
     </button>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/argon2-browser@1.18.0/dist/argon2.min.js"></script>
 <script>
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -198,16 +201,16 @@ async function copyText(id) {
         showToast('Nothing to copy');
         return;
     }
-    if (navigator.clipboard) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
             await navigator.clipboard.writeText(el.value);
             showToast('Copied');
             return;
         } catch (err) {
             console.error('Failed to copy using Clipboard API: ', err);
-            // Fallback to execCommand
         }
     }
+    // Fallback for older browsers
     el.select();
     document.execCommand('copy');
     showToast('Copied (fallback)');
@@ -215,7 +218,7 @@ async function copyText(id) {
 
 async function pasteText(id) {
     const el = document.getElementById(id);
-    if (navigator.clipboard) {
+    if (navigator.clipboard && navigator.clipboard.readText) {
         try {
             const text = await navigator.clipboard.readText();
             el.value = text;
@@ -235,10 +238,18 @@ let activeKey = null;
 let exportedKeyB64 = '';
 let keyMode = 'generate';
 
-// Argon2id placeholder using PBKDF2 as fallback (replace with real WASM)
+// Argon2id key derivation using a library
 async function deriveKeyArgon2(password, salt, iterations) {
-  const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' }, baseKey, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    const hash = await argon2.hash({
+        pass: password,
+        salt: salt,
+        time: iterations,
+        mem: 1024,
+        hashLen: 32,
+        type: argon2.ArgonType.Argon2id,
+        parallelism: 1
+    });
+    return crypto.subtle.importKey('raw', fromB64(hash.encoded.slice(hash.encoded.lastIndexOf('$') + 1)), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
 }
 
 // UI Logic
@@ -255,7 +266,6 @@ function showSection(section) {
     document.getElementById('encryptSection').style.display = 'none';
     document.getElementById('decryptSection').style.display = 'none';
     
-    // Deactivate all nav buttons
     document.querySelectorAll('.nav-bar button').forEach(btn => btn.classList.remove('active'));
 
     if (section === 'home') {
@@ -268,19 +278,24 @@ function showSection(section) {
         document.getElementById('decryptSection').style.display = 'block';
         document.getElementById('showDecryptNavBtn').classList.add('active');
     }
-    // Clear fields when switching sections
+
+    // Clear all form data and states when switching sections
     document.getElementById('plaintext').value = '';
     document.getElementById('ciphertext').value = '';
     document.getElementById('cipherInput').value = '';
     document.getElementById('decrypted').value = '';
     document.getElementById('decryptPasswordBox').style.display = 'none';
     document.getElementById('decryptKeySection').style.display = 'none';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwStrength').style.width = '0%';
+    document.getElementById('exportedKey').value = '';
 }
 
-// Key generation/import
+// Key generation and import logic
 document.getElementById('genKeyBtn').onclick = async () => {
     activeKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-    exportedKeyB64 = toB64(await crypto.subtle.exportKey('raw', activeKey));
+    const rawKey = await crypto.subtle.exportKey('raw', activeKey);
+    exportedKeyB64 = toB64(rawKey);
     document.getElementById('exportedKey').value = exportedKeyB64;
     showToast('AES-256 Key Generated');
 };
@@ -293,8 +308,8 @@ document.getElementById('importBtn').onclick = () => {
         if (raw.byteLength !== 32) { showToast('Key must be 32 bytes'); return; }
         crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt'])
             .then(k => { activeKey = k; exportedKeyB64 = v; document.getElementById('exportedKey').value = v; showToast('Key Imported'); })
-            .catch(e => showToast('Import Error'));
-    } catch { showToast('Invalid Base64'); }
+            .catch(() => showToast('Import Error: Invalid key format.'));
+    } catch { showToast('Invalid Base64 format.'); }
 };
 
 document.getElementById('decryptImportBtn').onclick = () => {
@@ -305,8 +320,16 @@ document.getElementById('decryptImportBtn').onclick = () => {
         if (raw.byteLength !== 32) { showToast('Key must be 32 bytes'); return; }
         crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt'])
             .then(k => { activeKey = k; exportedKeyB64 = v; showToast('Key Imported'); })
-            .catch(e => showToast('Import Error'));
-    } catch { showToast('Invalid Base64'); }
+            .catch(() => showToast('Import Error: Invalid key format.'));
+    } catch { showToast('Invalid Base64 format.'); }
+};
+
+document.getElementById('clearKeyBtn').onclick = () => {
+    activeKey = null;
+    exportedKeyB64 = '';
+    document.getElementById('exportedKey').value = '';
+    document.getElementById('importKeyInput').value = '';
+    showToast('Key cleared from memory');
 };
 
 // Password strength and visibility
@@ -341,33 +364,33 @@ document.getElementById('toggleDecryptPwBtn').onclick = () => togglePasswordVisi
 
 // Encrypt
 async function encrypt() {
-  const pt = document.getElementById('plaintext').value;
-  if (!pt) { showToast('Enter plaintext'); return; }
-  const notes = document.getElementById('notesInput').value || '';
-  let iv = rand(12);
-  let keyToUse = activeKey;
-  let salt = null;
+    const pt = document.getElementById('plaintext').value;
+    if (!pt) { showToast('Enter plaintext'); return; }
+    const notes = document.getElementById('notesInput').value || '';
+    let iv = rand(12);
+    let keyToUse = activeKey;
+    let salt = null;
 
-  if (keyMode === 'password') {
-    salt = new Uint8Array(rand(16));
-    const pw = document.getElementById('pwInput').value;
-    if (!pw) { showToast('Enter a password'); return; }
-    keyToUse = await deriveKeyArgon2(pw, salt, parseInt(document.getElementById('pwIters').value || 3));
-  } else if (!activeKey) {
-    showToast('Please generate or import a key');
-    return;
-  }
-  
-  try {
-    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, keyToUse, enc.encode(pt));
-    const blob = { alg: 'AES-GCM', iv: toB64(iv), ct: toB64(ct), notes };
-    if (salt) blob.salt = toB64(salt);
-    document.getElementById('ciphertext').value = btoa(JSON.stringify(blob));
-    showToast('Encryption Successful');
-  } catch (e) {
-    console.error(e);
-    showToast('Encryption Failed. Check console for details.');
-  }
+    if (keyMode === 'password') {
+        salt = new Uint8Array(rand(16));
+        const pw = document.getElementById('pwInput').value;
+        if (!pw) { showToast('Enter a password'); return; }
+        keyToUse = await deriveKeyArgon2(pw, salt, parseInt(document.getElementById('pwIters').value || 3));
+    } else if (!activeKey) {
+        showToast('Please generate or import a key');
+        return;
+    }
+    
+    try {
+        const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, keyToUse, enc.encode(pt));
+        const blob = { alg: 'AES-GCM', iv: toB64(iv), ct: toB64(ct), notes };
+        if (salt) blob.salt = toB64(salt);
+        document.getElementById('ciphertext').value = btoa(JSON.stringify(blob));
+        showToast('Encryption Successful');
+    } catch (e) {
+        console.error(e);
+        showToast('Encryption Failed. Check console for details.');
+    }
 }
 
 document.getElementById('encryptBtn').onclick = encrypt;
@@ -375,43 +398,43 @@ document.getElementById('encryptAndCopy').onclick = async () => { await encrypt(
 
 // Decrypt
 async function decrypt() {
-  const blobB64 = document.getElementById('cipherInput').value.trim();
-  if (!blobB64) { showToast('Paste a blob to decrypt'); return; }
-  
-  try {
-    const meta = JSON.parse(atob(blobB64));
-    if (!meta.iv || !meta.ct) {
-        showToast('Invalid blob format. Missing IV or ciphertext.');
-        return;
-    }
+    const blobB64 = document.getElementById('cipherInput').value.trim();
+    if (!blobB64) { showToast('Paste a blob to decrypt'); return; }
     
-    let keyToUse;
-    if (meta.salt) {
-      const pw = document.getElementById('decryptPwInput').value;
-      if (!pw) { showToast('Enter the password'); return; }
-      keyToUse = await deriveKeyArgon2(pw, fromB64(meta.salt), parseInt(document.getElementById('pwIters').value || 3));
-    } else {
-        const decryptKeyInput = document.getElementById('decryptKeyInput').value;
-        if (!decryptKeyInput) {
-            showToast('Please import the key used for encryption.');
+    try {
+        const meta = JSON.parse(atob(blobB64));
+        if (!meta.iv || !meta.ct) {
+            showToast('Invalid blob format. Missing IV or ciphertext.');
             return;
         }
-        const raw = fromB64(decryptKeyInput);
-        keyToUse = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+
+        let keyToUse;
+        if (meta.salt) {
+            const pw = document.getElementById('decryptPwInput').value;
+            if (!pw) { showToast('Enter the password'); return; }
+            keyToUse = await deriveKeyArgon2(pw, fromB64(meta.salt), parseInt(document.getElementById('pwIters').value || 3));
+        } else {
+            const decryptKeyInput = document.getElementById('decryptKeyInput').value;
+            if (!decryptKeyInput) {
+                showToast('Please import the key used for encryption.');
+                return;
+            }
+            const raw = fromB64(decryptKeyInput);
+            keyToUse = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+        }
+
+        const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.iv) }, keyToUse, fromB64(meta.ct));
+        document.getElementById('decrypted').value = dec.decode(ptBuf);
+        showToast('Decryption Successful');
+        
+        // Clear inputs after successful operation for security and usability
+        document.getElementById('cipherInput').value = '';
+        document.getElementById('decryptKeyInput').value = '';
+
+    } catch (e) {
+        showToast('Decryption Failed. Invalid blob, key, or password.');
+        console.error(e);
     }
-
-    const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.iv) }, keyToUse, fromB64(meta.ct));
-    document.getElementById('decrypted').value = dec.decode(ptBuf);
-    showToast('Decryption Successful');
-
-    // Clear inputs after successful operation
-    document.getElementById('cipherInput').value = '';
-    document.getElementById('decryptKeyInput').value = '';
-
-  } catch (e) {
-    showToast('Decryption Failed. Invalid blob or key.');
-    console.error(e);
-  }
 }
 
 document.getElementById('decryptBtn').onclick = decrypt;
@@ -444,8 +467,10 @@ document.getElementById('cipherInput').addEventListener('input', () => {
         } else {
             document.getElementById('decryptKeySection').style.display = 'block';
         }
-    } catch {
-        // If parsing fails, hide both
+    } catch (e) {
+        // If parsing fails, hide both and provide a generic message
+        document.getElementById('decryptPasswordBox').style.display = 'none';
+        document.getElementById('decryptKeySection').style.display = 'none';
     }
 });
 
