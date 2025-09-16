@@ -66,92 +66,96 @@ button:active{transform:translateY(1px);box-shadow:none;}
     </div>
 </div>
 
-<div class="section" id="keySection" style="display: none;">
-    <h2>Key Management</h2>
-    <label>Key mode</label>
-    <select id="keyMode">
-      <option value="generate">Generate random AES-256 key</option>
-      <option value="import">Import raw key (base64)</option>
-      <option value="password">Derive key from password (Argon2id)</option>
-    </select>
-    
-    <div id="generateBox">
-      <button id="genKeyBtn">Generate AES-256 Key</button>
-      <div class="note">Generates a cryptographically secure 256-bit AES key. Export it to reuse.</div>
+<div id="encryptSection" style="display: none;">
+    <div class="section" id="keySection">
+        <h2>Key Management</h2>
+        <label>Key mode</label>
+        <select id="keyMode">
+          <option value="generate">Generate random AES-256 key</option>
+          <option value="import">Import raw key (base64)</option>
+          <option value="password">Derive key from password (Argon2id)</option>
+        </select>
+        
+        <div id="generateBox">
+          <button id="genKeyBtn">Generate AES-256 Key</button>
+          <div class="note">Generates a cryptographically secure 256-bit AES key. Export it to reuse.</div>
+        </div>
+        
+        <div id="importBox" style="display:none;">
+          <label>Paste raw key (base64 of 32 bytes)</label>
+          <input id="importKeyInput" placeholder="Base64 key">
+          <button id="importBtn">Import Key</button>
+        </div>
+        
+        <div id="passwordBox" style="display:none;">
+          <label>Password</label>
+          <div class="input-with-icon">
+            <input id="pwInput" type="password" placeholder="Type a strong passphrase">
+            <button type="button" id="togglePwBtn">👁️</button>
+          </div>
+          <div class="password-strength"><div id="pwStrength"></div></div>
+          <label>Argon2id iterations</label>
+          <input id="pwIters" type="number" value="3">
+          <div class="note">Password-derived key using Argon2id. Stronger GPU resistance.</div>
+        </div>
+        
+        <label>Exported key (base64)</label>
+        <div class="input-with-icon">
+            <input id="exportedKey" readonly placeholder="No key yet">
+            <button type="button" onclick="copyText('exportedKey')" class="copy-btn">Copy</button>
+        </div>
     </div>
     
-    <div id="importBox" style="display:none;">
-      <label>Paste raw key (base64 of 32 bytes)</label>
-      <input id="importKeyInput" placeholder="Base64 key">
-      <button id="importBtn">Import Key</button>
-    </div>
-    
-    <div id="passwordBox" style="display:none;">
-      <label>Password</label>
-      <div class="input-with-icon">
-        <input id="pwInput" type="password" placeholder="Type a strong passphrase">
-        <button type="button" id="togglePwBtn">👁️</button>
-      </div>
-      <div class="password-strength"><div id="pwStrength"></div></div>
-      <label>Argon2id iterations</label>
-      <input id="pwIters" type="number" value="3">
-      <div class="note">Password-derived key using Argon2id. Stronger GPU resistance.</div>
-    </div>
-    
-    <label>Exported key (base64)</label>
-    <div class="input-with-icon">
-        <input id="exportedKey" readonly placeholder="No key yet">
-        <button type="button" onclick="copyText('exportedKey')" class="copy-btn">Copy</button>
+    <div class="section">
+        <h2>Encrypt</h2>
+        <label>Plaintext</label>
+        <textarea id="plaintext" placeholder="Enter text here"></textarea>
+        <label>Optional notes</label>
+        <input id="notesInput" placeholder="Add notes for this blob">
+        <div class="row">
+          <div class="col"><button id="encryptBtn">Encrypt</button></div>
+          <div class="col"><button id="encryptAndCopy">Encrypt + Copy</button></div>
+        </div>
+        <label>Encrypted blob (Base64 JSON)</label>
+        <div class="input-with-icon">
+            <textarea id="ciphertext" readonly></textarea>
+            <button type="button" onclick="copyText('ciphertext')" class="copy-btn">Copy</button>
+        </div>
     </div>
 </div>
 
-<div class="section" id="encryptSection" style="display: none;">
-    <h2>Encrypt</h2>
-    <label>Plaintext</label>
-    <textarea id="plaintext" placeholder="Enter text here"></textarea>
-    <label>Optional notes</label>
-    <input id="notesInput" placeholder="Add notes for this blob">
-    <div class="row">
-      <div class="col"><button id="encryptBtn">Encrypt</button></div>
-      <div class="col"><button id="encryptAndCopy">Encrypt + Copy</button></div>
-    </div>
-    <label>Encrypted blob (Base64 JSON)</label>
-    <div class="input-with-icon">
-        <textarea id="ciphertext" readonly></textarea>
-        <button type="button" onclick="copyText('ciphertext')" class="copy-btn">Copy</button>
-    </div>
-</div>
+<div id="decryptSection" style="display: none;">
+    <div class="section">
+        <h2>Decrypt</h2>
+        <label>Paste encrypted blob (Base64 JSON)</label>
+        <div class="input-with-icon">
+            <textarea id="cipherInput" placeholder="Paste blob here"></textarea>
+            <button type="button" onclick="pasteText('cipherInput')" class="paste-btn">Paste</button>
+        </div>
 
-<div class="section" id="decryptSection" style="display: none;">
-    <h2>Decrypt</h2>
-    <label>Paste encrypted blob (Base64 JSON)</label>
-    <div class="input-with-icon">
-        <textarea id="cipherInput" placeholder="Paste blob here"></textarea>
-        <button type="button" onclick="pasteText('cipherInput')" class="paste-btn">Paste</button>
-    </div>
+        <div id="decryptKeySection" style="display: none;">
+            <label>Import raw key (base64 of 32 bytes)</label>
+            <input id="decryptKeyInput" placeholder="Base64 key">
+            <button id="decryptImportBtn">Import Key</button>
+        </div>
 
-    <div id="decryptKeySection" style="display: none;">
-        <label>Import raw key (base64 of 32 bytes)</label>
-        <input id="decryptKeyInput" placeholder="Base64 key">
-        <button id="decryptImportBtn">Import Key</button>
-    </div>
+        <div id="decryptPasswordBox" style="margin-top:10px; display: none;">
+          <label>Password (if used for encryption)</label>
+          <div class="input-with-icon">
+            <input id="decryptPwInput" type="password" placeholder="Password if encrypted with password">
+            <button type="button" id="toggleDecryptPwBtn">👁️</button>
+          </div>
+        </div>
 
-    <div id="decryptPasswordBox" style="margin-top:10px; display: none;">
-      <label>Password (if used for encryption)</label>
-      <div class="input-with-icon">
-        <input id="decryptPwInput" type="password" placeholder="Password if encrypted with password">
-        <button type="button" id="toggleDecryptPwBtn">👁️</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col"><button id="decryptBtn">Decrypt</button></div>
-      <div class="col"><button id="decryptAndCopy">Decrypt + Copy</button></div>
-    </div>
-    <label>Decrypted output</label>
-    <div class="input-with-icon">
-        <textarea id="decrypted" readonly></textarea>
-        <button type="button" onclick="copyText('decrypted')" class="copy-btn">Copy</button>
+        <div class="row">
+          <div class="col"><button id="decryptBtn">Decrypt</button></div>
+          <div class="col"><button id="decryptAndCopy">Decrypt + Copy</button></div>
+        </div>
+        <label>Decrypted output</label>
+        <div class="input-with-icon">
+            <textarea id="decrypted" readonly></textarea>
+            <button type="button" onclick="copyText('decrypted')" class="copy-btn">Copy</button>
+        </div>
     </div>
 </div>
 
@@ -179,35 +183,51 @@ const dec = new TextDecoder();
 function toB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
 function fromB64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
 function rand(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return a.buffer; }
-function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; setTimeout(() => { t.style.display = 'none'; }, 1500); }
 
+function showToast(msg) { 
+    const t = document.getElementById('toast'); 
+    t.textContent = msg; 
+    t.style.display = 'block'; 
+    setTimeout(() => { t.style.display = 'none'; }, 1500); 
+}
+
+// Modern clipboard functions with fallbacks
 async function copyText(id) {
     const el = document.getElementById(id);
     if (!el.value) {
         showToast('Nothing to copy');
         return;
     }
-    try {
-        await navigator.clipboard.writeText(el.value);
-        showToast('Copied');
-    } catch (err) {
-        el.select();
-        document.execCommand('copy');
-        showToast('Copied (fallback)');
+    if (navigator.clipboard) {
+        try {
+            await navigator.clipboard.writeText(el.value);
+            showToast('Copied');
+            return;
+        } catch (err) {
+            console.error('Failed to copy using Clipboard API: ', err);
+            // Fallback to execCommand
+        }
     }
+    el.select();
+    document.execCommand('copy');
+    showToast('Copied (fallback)');
 }
 
 async function pasteText(id) {
     const el = document.getElementById(id);
-    try {
-        const text = await navigator.clipboard.readText();
-        el.value = text;
-        showToast('Pasted');
-        // Trigger input event to handle password box and key import visibility
-        el.dispatchEvent(new Event('input'));
-    } catch (err) {
-        showToast('Failed to paste from clipboard');
+    if (navigator.clipboard) {
+        try {
+            const text = await navigator.clipboard.readText();
+            el.value = text;
+            showToast('Pasted');
+            el.dispatchEvent(new Event('input'));
+            return;
+        } catch (err) {
+            console.error('Failed to paste using Clipboard API: ', err);
+            showToast('Failed to paste from clipboard');
+        }
     }
+    // No execCommand fallback for paste due to security restrictions
 }
 
 // AES key
@@ -232,7 +252,6 @@ keyModeSel.addEventListener('change', (e) => {
 
 function showSection(section) {
     document.getElementById('homeScreen').style.display = 'none';
-    document.getElementById('keySection').style.display = 'none';
     document.getElementById('encryptSection').style.display = 'none';
     document.getElementById('decryptSection').style.display = 'none';
     
@@ -243,17 +262,22 @@ function showSection(section) {
         document.getElementById('homeScreen').style.display = 'block';
         document.getElementById('showHomeNavBtn').classList.add('active');
     } else if (section === 'encrypt') {
-        document.getElementById('keySection').style.display = 'block';
         document.getElementById('encryptSection').style.display = 'block';
         document.getElementById('showEncryptNavBtn').classList.add('active');
     } else if (section === 'decrypt') {
-        document.getElementById('keySection').style.display = 'none';
         document.getElementById('decryptSection').style.display = 'block';
         document.getElementById('showDecryptNavBtn').classList.add('active');
     }
+    // Clear fields when switching sections
+    document.getElementById('plaintext').value = '';
+    document.getElementById('ciphertext').value = '';
+    document.getElementById('cipherInput').value = '';
+    document.getElementById('decrypted').value = '';
+    document.getElementById('decryptPasswordBox').style.display = 'none';
+    document.getElementById('decryptKeySection').style.display = 'none';
 }
 
-// Key generation/import/copy/clear
+// Key generation/import
 document.getElementById('genKeyBtn').onclick = async () => {
     activeKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
     exportedKeyB64 = toB64(await crypto.subtle.exportKey('raw', activeKey));
@@ -323,20 +347,27 @@ async function encrypt() {
   let iv = rand(12);
   let keyToUse = activeKey;
   let salt = null;
+
   if (keyMode === 'password') {
     salt = new Uint8Array(rand(16));
     const pw = document.getElementById('pwInput').value;
-    if (!pw) { showToast('Enter password'); return; }
+    if (!pw) { showToast('Enter a password'); return; }
     keyToUse = await deriveKeyArgon2(pw, salt, parseInt(document.getElementById('pwIters').value || 3));
   } else if (!activeKey) {
     showToast('Please generate or import a key');
     return;
   }
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, keyToUse, enc.encode(pt));
-  const blob = { alg: 'AES-GCM', iv: toB64(iv), ct: toB64(ct), notes };
-  if (salt) blob.salt = toB64(salt);
-  document.getElementById('ciphertext').value = btoa(JSON.stringify(blob));
-  showToast('Encryption Successful');
+  
+  try {
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, keyToUse, enc.encode(pt));
+    const blob = { alg: 'AES-GCM', iv: toB64(iv), ct: toB64(ct), notes };
+    if (salt) blob.salt = toB64(salt);
+    document.getElementById('ciphertext').value = btoa(JSON.stringify(blob));
+    showToast('Encryption Successful');
+  } catch (e) {
+    console.error(e);
+    showToast('Encryption Failed. Check console for details.');
+  }
 }
 
 document.getElementById('encryptBtn').onclick = encrypt;
@@ -345,29 +376,38 @@ document.getElementById('encryptAndCopy').onclick = async () => { await encrypt(
 // Decrypt
 async function decrypt() {
   const blobB64 = document.getElementById('cipherInput').value.trim();
-  if (!blobB64) { showToast('Paste blob'); return; }
+  if (!blobB64) { showToast('Paste a blob to decrypt'); return; }
+  
   try {
     const meta = JSON.parse(atob(blobB64));
+    if (!meta.iv || !meta.ct) {
+        showToast('Invalid blob format. Missing IV or ciphertext.');
+        return;
+    }
+    
     let keyToUse;
-
-    // Check if the blob was encrypted with a password
     if (meta.salt) {
       const pw = document.getElementById('decryptPwInput').value;
-      if (!pw) { showToast('Enter password'); return; }
+      if (!pw) { showToast('Enter the password'); return; }
       keyToUse = await deriveKeyArgon2(pw, fromB64(meta.salt), parseInt(document.getElementById('pwIters').value || 3));
-    } 
-    // Otherwise, check if a key has been imported
-    else if (exportedKeyB64) {
-        const raw = fromB64(exportedKeyB64);
-        keyToUse = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
     } else {
-        showToast('Please import the key used for encryption.');
-        return;
+        const decryptKeyInput = document.getElementById('decryptKeyInput').value;
+        if (!decryptKeyInput) {
+            showToast('Please import the key used for encryption.');
+            return;
+        }
+        const raw = fromB64(decryptKeyInput);
+        keyToUse = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
     }
 
     const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.iv) }, keyToUse, fromB64(meta.ct));
     document.getElementById('decrypted').value = dec.decode(ptBuf);
     showToast('Decryption Successful');
+
+    // Clear inputs after successful operation
+    document.getElementById('cipherInput').value = '';
+    document.getElementById('decryptKeyInput').value = '';
+
   } catch (e) {
     showToast('Decryption Failed. Invalid blob or key.');
     console.error(e);
@@ -391,7 +431,7 @@ document.getElementById('showHomeNavBtn').onclick = () => showSection('home');
 document.getElementById('showEncryptNavBtn').onclick = () => showSection('encrypt');
 document.getElementById('showDecryptNavBtn').onclick = () => showSection('decrypt');
 
-// Add an event listener to the cipherInput textarea for dynamic password box
+// Dynamic UI for decryption section
 document.getElementById('cipherInput').addEventListener('input', () => {
     const blobB64 = document.getElementById('cipherInput').value.trim();
     document.getElementById('decryptPasswordBox').style.display = 'none';
