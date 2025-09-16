@@ -43,8 +43,8 @@ button:active{transform:translateY(1px);box-shadow:none;}
 .home-card p{font-size:14px;color:var(--note);margin:0;}
 .home-cards-actions{display:flex;justify-content:center;gap:15px;margin-top:20px;}
 .home-cards-actions button{flex:1;max-width:150px;}
-.copy-btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;font-size:13px;background:var(--accent);border:none;color:#fff;border-radius:8px;cursor:pointer;margin-left:8px;transition:background 0.2s;}
-.copy-btn:hover{filter:brightness(1.1);}
+.copy-btn, .paste-btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;font-size:13px;background:var(--accent);border:none;color:#fff;border-radius:8px;cursor:pointer;margin-left:8px;transition:background 0.2s;}
+.copy-btn:hover, .paste-btn:hover{filter:brightness(1.1);}
 .theme-toggle{position:fixed;top:16px;right:16px;z-index:1000;background:none;border:none;cursor:pointer;font-size:24px;color:var(--text);transition:color 0.3s;}
 </style>
 </head>
@@ -127,7 +127,7 @@ button:active{transform:translateY(1px);box-shadow:none;}
     <label>Paste encrypted blob (Base64 JSON)</label>
     <div class="input-with-icon">
         <textarea id="cipherInput" placeholder="Paste blob here"></textarea>
-        <button type="button" onclick="copyText('cipherInput')" class="copy-btn">Copy</button>
+        <button type="button" onclick="pasteText('cipherInput')" class="paste-btn">Paste</button>
     </div>
 
     <div id="decryptPasswordBox" style="margin-top:10px; display: none;">
@@ -174,7 +174,35 @@ function toB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); 
 function fromB64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
 function rand(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return a.buffer; }
 function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; setTimeout(() => { t.style.display = 'none'; }, 1500); }
-function copyText(id) { const el = document.getElementById(id); el.select(); document.execCommand('copy'); showToast('Copied'); }
+
+async function copyText(id) {
+    const el = document.getElementById(id);
+    if (!el.value) {
+        showToast('Nothing to copy');
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(el.value);
+        showToast('Copied');
+    } catch (err) {
+        el.select();
+        document.execCommand('copy');
+        showToast('Copied (fallback)');
+    }
+}
+
+async function pasteText(id) {
+    const el = document.getElementById(id);
+    try {
+        const text = await navigator.clipboard.readText();
+        el.value = text;
+        showToast('Pasted');
+        // Trigger input event to handle password box visibility
+        el.dispatchEvent(new Event('input'));
+    } catch (err) {
+        showToast('Failed to paste from clipboard');
+    }
+}
 
 // AES key
 let activeKey = null;
@@ -304,12 +332,10 @@ async function decrypt() {
     const meta = JSON.parse(atob(blobB64));
     let keyToUse = activeKey;
     if (meta.salt) {
-      document.getElementById('decryptPasswordBox').style.display = 'block';
       const pw = document.getElementById('decryptPwInput').value;
       if (!pw) { showToast('Enter password'); return; }
       keyToUse = await deriveKeyArgon2(pw, fromB64(meta.salt), parseInt(document.getElementById('pwIters').value || 3));
     } else {
-        document.getElementById('decryptPasswordBox').style.display = 'none';
         if (!activeKey) {
             showToast('Please generate or import a key to decrypt.');
             return;
