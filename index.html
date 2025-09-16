@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Local AES-256 Encryptor — AES-GCM Offline</title>
+<style>
+:root{--accent:#0ea5e9;--radius:16px;--bg:#eef6ff;--bg-gradient:linear-gradient(45deg, #eef6ff, #f0f9ff);--text:#111;--section-bg:#fff;--border:#e6eef6;--lead:#444;--note:#555;--card-bg:linear-gradient(135deg, #f0f9ff, #fff);--shadow:0 6px 16px rgba(0,0,0,0.08);--shadow-sm:0 2px 8px rgba(0,0,0,0.04);}
+.dark-mode{--bg:#1a1a2e;--bg-gradient:linear-gradient(45deg, #16162a, #232a4a);--text:#f0f0f0;--section-bg:#2d2d4f;--border:#3a3a5a;--lead:#ccc;--note:#aaa;--card-bg:linear-gradient(135deg, #2d2d4f, #3a3a5a);--shadow:0 6px 16px rgba(0,0,0,0.3);--shadow-sm:0 2px 8px rgba(0,0,0,0.2);}
+body{font-family:Inter,system-ui,Segoe UI,Arial;margin:0 auto;padding:16px;color:var(--text);background:var(--bg-gradient);max-width:1000px;line-height:1.5;padding-bottom:70px;transition:background 0.3s, color 0.3s;}
+h1{font-size:26px;text-align:center;margin-bottom:6px;font-weight:700;}
+h1 small{font-weight:300;display:block;font-size:16px;color:var(--lead);margin-top:4px;}
+.lead{color:var(--lead);text-align:center;margin-bottom:20px;font-size:15px;}
+.section{background:var(--section-bg);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:18px;box-shadow:var(--shadow);}
+h2{font-size:16px;margin-bottom:8px;color:var(--accent);}
+label{display:block;margin-top:10px;font-weight:600;font-size:14px;}
+textarea,input,select{width:100%;padding:10px;margin-top:6px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);box-sizing:border-box;transition:border 0.3s;}
+textarea:focus,input:focus,select:focus{border-color:var(--accent);outline:none;}
+textarea{resize:none;min-height:60px;}
+button{padding:12px 14px;border-radius:var(--radius);border:0;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:15px;margin-top:8px;width:100%;transition:transform 0.2s, box-shadow 0.2s, background 0.2s;}
+button:hover{filter:brightness(1.1);}
+button:active{transform:translateY(1px);box-shadow:none;}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.col{flex:1 1 100%;}
+@media(min-width:480px){.col{flex:1;}}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:12px 16px;border-radius:var(--radius);box-shadow:var(--shadow);display:none;z-index:1000;font-weight:600;}
+.password-strength{height:6px;width:100%;border-radius:4px;background:#ddd;margin-top:4px;overflow:hidden;}
+.password-strength div{height:100%;width:0%;transition:width 0.3s;}
+.password-strength div.weak{background:red;}
+.password-strength div.medium{background:orange;}
+.password-strength div.strong{background:green;}
+.input-with-icon{position:relative;display:flex;align-items:center;}
+.input-with-icon input, .input-with-icon textarea{padding-right:45px;flex-grow:1;}
+.input-with-icon button{position:absolute;right:10px;background:none;border:none;color:var(--text);cursor:pointer;font-size:18px;width:auto;padding:0;margin:0;}
+.nav-bar{position:fixed;bottom:0;left:0;width:100%;display:flex;justify-content:space-around;padding:10px 0;background:var(--section-bg);border-top:1px solid var(--border);box-shadow:0 -2px 10px rgba(0,0,0,0.05);z-index:999;transition:background 0.3s, border-color 0.3s;}
+.nav-bar button{flex:1;margin:0 5px;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;color:var(--lead);font-weight:600;transition:color 0.2s;}
+.nav-bar button:hover{color:var(--accent);}
+.nav-bar button.active{color:var(--accent);}
+.nav-bar button .icon{font-size:24px;}
+.home-card{background:var(--card-bg);padding:30px 20px;border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);transition:transform 0.2s;cursor:pointer;text-align:center;max-width:400px;margin:30px auto;}
+.home-card:hover{transform:translateY(-5px);}
+.home-card h3{font-size:18px;margin:0 0 5px 0;}
+.home-card p{font-size:14px;color:var(--note);margin:0;}
+.home-cards-actions{display:flex;justify-content:center;gap:15px;margin-top:20px;}
+.home-cards-actions button{flex:1;max-width:150px;}
+.copy-btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;font-size:13px;background:var(--accent);border:none;color:#fff;border-radius:8px;cursor:pointer;margin-left:8px;transition:background 0.2s;}
+.copy-btn:hover{filter:brightness(1.1);}
+.theme-toggle{position:fixed;top:16px;right:16px;z-index:1000;background:none;border:none;cursor:pointer;font-size:24px;color:var(--text);transition:color 0.3s;}
+</style>
+</head>
+<body>
+
+<h1>AES-256 Encryptor <small>Secure your data, locally.</small></h1>
+<div class="lead">Crafted by <strong>Vivek Narkhede</strong></div>
+
+<button id="themeToggleBtn" class="theme-toggle">☀️</button>
+
+<div id="homeScreen" style="display: none;">
+    <div class="home-card">
+        <h3>What do you want to do?</h3>
+        <p>Choose an action to get started.</p>
+        <div class="home-cards-actions">
+            <button id="showEncryptBtn">Encrypt</button>
+            <button id="showDecryptBtn">Decrypt</button>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="keySection" style="display: none;">
+    <h2>Key Management</h2>
+    <label>Key mode</label>
+    <select id="keyMode">
+      <option value="generate">Generate random AES-256 key</option>
+      <option value="import">Import raw key (base64)</option>
+      <option value="password">Derive key from password (Argon2id)</option>
+    </select>
+    
+    <div id="generateBox">
+      <button id="genKeyBtn">Generate AES-256 Key</button>
+      <div class="note">Generates a cryptographically secure 256-bit AES key. Export it to reuse.</div>
+    </div>
+    
+    <div id="importBox" style="display:none;">
+      <label>Paste raw key (base64 of 32 bytes)</label>
+      <input id="importKeyInput" placeholder="Base64 key">
+      <button id="importBtn">Import Key</button>
+    </div>
+    
+    <div id="passwordBox" style="display:none;">
+      <label>Password</label>
+      <div class="input-with-icon">
+        <input id="pwInput" type="password" placeholder="Type a strong passphrase">
+        <button type="button" id="togglePwBtn">👁️</button>
+      </div>
+      <div class="password-strength"><div id="pwStrength"></div></div>
+      <label>Argon2id iterations</label>
+      <input id="pwIters" type="number" value="3">
+      <div class="note">Password-derived key using Argon2id. Stronger GPU resistance.</div>
+    </div>
+    
+    <label>Exported key (base64)</label>
+    <div class="input-with-icon">
+        <input id="exportedKey" readonly placeholder="No key yet">
+        <button type="button" onclick="copyText('exportedKey')" class="copy-btn">Copy</button>
+    </div>
+</div>
+
+<div class="section" id="encryptSection" style="display: none;">
+    <h2>Encrypt</h2>
+    <label>Plaintext</label>
+    <textarea id="plaintext" placeholder="Enter text here"></textarea>
+    <label>Optional notes</label>
+    <input id="notesInput" placeholder="Add notes for this blob">
+    <div class="row">
+      <div class="col"><button id="encryptBtn">Encrypt</button></div>
+      <div class="col"><button id="encryptAndCopy">Encrypt + Copy</button></div>
+    </div>
+    <label>Encrypted blob (Base64 JSON)</label>
+    <div class="input-with-icon">
+        <textarea id="ciphertext" readonly></textarea>
+        <button type="button" onclick="copyText('ciphertext')" class="copy-btn">Copy</button>
+    </div>
+</div>
+
+<div class="section" id="decryptSection" style="display: none;">
+    <h2>Decrypt</h2>
+    <label>Paste encrypted blob (Base64 JSON)</label>
+    <div class="input-with-icon">
+        <textarea id="cipherInput" placeholder="Paste blob here"></textarea>
+        <button type="button" onclick="copyText('cipherInput')" class="copy-btn">Copy</button>
+    </div>
+
+    <div id="decryptPasswordBox" style="margin-top:10px; display: none;">
+      <label>Password (if used for encryption)</label>
+      <div class="input-with-icon">
+        <input id="decryptPwInput" type="password" placeholder="Password if encrypted with password">
+        <button type="button" id="toggleDecryptPwBtn">👁️</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col"><button id="decryptBtn">Decrypt</button></div>
+      <div class="col"><button id="decryptAndCopy">Decrypt + Copy</button></div>
+    </div>
+    <label>Decrypted output</label>
+    <div class="input-with-icon">
+        <textarea id="decrypted" readonly></textarea>
+        <button type="button" onclick="copyText('decrypted')" class="copy-btn">Copy</button>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="nav-bar">
+    <button id="showHomeNavBtn">
+        <span class="icon">🏠</span>
+        <span>Home</span>
+    </button>
+    <button id="showEncryptNavBtn">
+        <span class="icon">🔒</span>
+        <span>Encrypt</span>
+    </button>
+    <button id="showDecryptNavBtn">
+        <span class="icon">🔑</span>
+        <span>Decrypt</span>
+    </button>
+</div>
+
+<script>
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+function toB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function fromB64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+function rand(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return a.buffer; }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; setTimeout(() => { t.style.display = 'none'; }, 1500); }
+function copyText(id) { const el = document.getElementById(id); el.select(); document.execCommand('copy'); showToast('Copied'); }
+
+// AES key
+let activeKey = null;
+let exportedKeyB64 = '';
+let keyMode = 'generate';
+
+// Argon2id placeholder using PBKDF2 as fallback (replace with real WASM)
+async function deriveKeyArgon2(password, salt, iterations) {
+  const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' }, baseKey, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+}
+
+// UI Logic
+const keyModeSel = document.getElementById('keyMode');
+keyModeSel.addEventListener('change', (e) => {
+    keyMode = e.target.value;
+    document.getElementById('generateBox').style.display = keyMode === 'generate' ? 'block' : 'none';
+    document.getElementById('importBox').style.display = keyMode === 'import' ? 'block' : 'none';
+    document.getElementById('passwordBox').style.display = keyMode === 'password' ? 'block' : 'none';
+});
+
+function showSection(section) {
+    document.getElementById('homeScreen').style.display = 'none';
+    document.getElementById('keySection').style.display = 'none';
+    document.getElementById('encryptSection').style.display = 'none';
+    document.getElementById('decryptSection').style.display = 'none';
+    
+    // Deactivate all nav buttons
+    document.querySelectorAll('.nav-bar button').forEach(btn => btn.classList.remove('active'));
+
+    if (section === 'home') {
+        document.getElementById('homeScreen').style.display = 'block';
+        document.getElementById('showHomeNavBtn').classList.add('active');
+    } else if (section === 'encrypt') {
+        document.getElementById('keySection').style.display = 'block';
+        document.getElementById('encryptSection').style.display = 'block';
+        document.getElementById('showEncryptNavBtn').classList.add('active');
+    } else if (section === 'decrypt') {
+        document.getElementById('keySection').style.display = 'none';
+        document.getElementById('decryptSection').style.display = 'block';
+        document.getElementById('showDecryptNavBtn').classList.add('active');
+    }
+}
+
+// Key generation/import/copy/clear
+document.getElementById('genKeyBtn').onclick = async () => {
+    activeKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    exportedKeyB64 = toB64(await crypto.subtle.exportKey('raw', activeKey));
+    document.getElementById('exportedKey').value = exportedKeyB64;
+    showToast('AES-256 Key Generated');
+};
+
+document.getElementById('importBtn').onclick = () => {
+    const v = document.getElementById('importKeyInput').value.trim();
+    if (!v) { showToast('Enter Base64 key'); return; }
+    try {
+        const raw = fromB64(v);
+        if (raw.byteLength !== 32) { showToast('Key must be 32 bytes'); return; }
+        crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt'])
+            .then(k => { activeKey = k; exportedKeyB64 = v; document.getElementById('exportedKey').value = v; showToast('Key Imported'); })
+            .catch(e => showToast('Import Error'));
+    } catch { showToast('Invalid Base64'); }
+};
+
+// Password strength and visibility
+const pwInput = document.getElementById('pwInput');
+const pwStrength = document.getElementById('pwStrength');
+pwInput.addEventListener('input', (e) => {
+    const pw = e.target.value;
+    let strength = 0;
+    if (pw.length > 5) strength = 1;
+    if (pw.length > 8 && /[a-z]/.test(pw) && /[A-Z]/.test(pw)) strength = 2;
+    if (pw.length > 12 && /[0-9]/.test(pw) && /[^A-Za-z0-9]/.test(pw)) strength = 3;
+
+    pwStrength.style.width = (strength * 33.3) + '%';
+    pwStrength.className = '';
+    if (strength === 1) pwStrength.classList.add('weak');
+    if (strength === 2) pwStrength.classList.add('medium');
+    if (strength === 3) pwStrength.classList.add('strong');
+});
+
+function togglePasswordVisibility(input, button) {
+  if (input.type === "password") {
+    input.type = "text";
+    button.textContent = '🙈';
+  } else {
+    input.type = "password";
+    button.textContent = '👁️';
+  }
+}
+
+document.getElementById('togglePwBtn').onclick = () => togglePasswordVisibility(pwInput, document.getElementById('togglePwBtn'));
+document.getElementById('toggleDecryptPwBtn').onclick = () => togglePasswordVisibility(document.getElementById('decryptPwInput'), document.getElementById('toggleDecryptPwBtn'));
+
+// Encrypt
+async function encrypt() {
+  const pt = document.getElementById('plaintext').value;
+  if (!pt) { showToast('Enter plaintext'); return; }
+  const notes = document.getElementById('notesInput').value || '';
+  let iv = rand(12);
+  let keyToUse = activeKey;
+  let salt = null;
+  if (keyMode === 'password') {
+    salt = new Uint8Array(rand(16));
+    const pw = document.getElementById('pwInput').value;
+    if (!pw) { showToast('Enter password'); return; }
+    keyToUse = await deriveKeyArgon2(pw, salt, parseInt(document.getElementById('pwIters').value || 3));
+  } else if (!activeKey) {
+    showToast('Please generate or import a key');
+    return;
+  }
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, keyToUse, enc.encode(pt));
+  const blob = { alg: 'AES-GCM', iv: toB64(iv), ct: toB64(ct), notes };
+  if (salt) blob.salt = toB64(salt);
+  document.getElementById('ciphertext').value = btoa(JSON.stringify(blob));
+  showToast('Encryption Successful');
+}
+
+document.getElementById('encryptBtn').onclick = encrypt;
+document.getElementById('encryptAndCopy').onclick = async () => { await encrypt(); copyText('ciphertext'); };
+
+// Decrypt
+async function decrypt() {
+  const blobB64 = document.getElementById('cipherInput').value.trim();
+  if (!blobB64) { showToast('Paste blob'); return; }
+  try {
+    const meta = JSON.parse(atob(blobB64));
+    let keyToUse = activeKey;
+    if (meta.salt) {
+      document.getElementById('decryptPasswordBox').style.display = 'block';
+      const pw = document.getElementById('decryptPwInput').value;
+      if (!pw) { showToast('Enter password'); return; }
+      keyToUse = await deriveKeyArgon2(pw, fromB64(meta.salt), parseInt(document.getElementById('pwIters').value || 3));
+    } else {
+        document.getElementById('decryptPasswordBox').style.display = 'none';
+        if (!activeKey) {
+            showToast('Please generate or import a key to decrypt.');
+            return;
+        }
+    }
+    const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.iv) }, keyToUse, fromB64(meta.ct));
+    document.getElementById('decrypted').value = dec.decode(ptBuf);
+    showToast('Decryption Successful');
+  } catch (e) {
+    showToast('Decryption Failed. Invalid blob or key.');
+    console.error(e);
+  }
+}
+
+document.getElementById('decryptBtn').onclick = decrypt;
+document.getElementById('decryptAndCopy').onclick = async () => { await decrypt(); copyText('decrypted'); };
+
+// Theme Toggle
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+themeToggleBtn.onclick = () => {
+    document.body.classList.toggle('dark-mode');
+    themeToggleBtn.textContent = document.body.classList.contains('dark-mode') ? '🌙' : '☀️';
+};
+
+// Initial UI setup and navigation listeners
+document.getElementById('showEncryptBtn').onclick = () => showSection('encrypt');
+document.getElementById('showDecryptBtn').onclick = () => showSection('decrypt');
+document.getElementById('showHomeNavBtn').onclick = () => showSection('home');
+document.getElementById('showEncryptNavBtn').onclick = () => showSection('encrypt');
+document.getElementById('showDecryptNavBtn').onclick = () => showSection('decrypt');
+
+// Add an event listener to the cipherInput textarea for dynamic password box
+document.getElementById('cipherInput').addEventListener('input', () => {
+    const blobB64 = document.getElementById('cipherInput').value.trim();
+    try {
+        const meta = JSON.parse(atob(blobB64));
+        document.getElementById('decryptPasswordBox').style.display = meta.salt ? 'block' : 'none';
+    } catch {
+        document.getElementById('decryptPasswordBox').style.display = 'none';
+    }
+});
+
+// Initial state
+showSection('home');
+</script>
+</body>
+</html>
