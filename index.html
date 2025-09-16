@@ -130,6 +130,12 @@ button:active{transform:translateY(1px);box-shadow:none;}
         <button type="button" onclick="pasteText('cipherInput')" class="paste-btn">Paste</button>
     </div>
 
+    <div id="decryptKeySection" style="display: none;">
+        <label>Import raw key (base64 of 32 bytes)</label>
+        <input id="decryptKeyInput" placeholder="Base64 key">
+        <button id="decryptImportBtn">Import Key</button>
+    </div>
+
     <div id="decryptPasswordBox" style="margin-top:10px; display: none;">
       <label>Password (if used for encryption)</label>
       <div class="input-with-icon">
@@ -197,7 +203,7 @@ async function pasteText(id) {
         const text = await navigator.clipboard.readText();
         el.value = text;
         showToast('Pasted');
-        // Trigger input event to handle password box visibility
+        // Trigger input event to handle password box and key import visibility
         el.dispatchEvent(new Event('input'));
     } catch (err) {
         showToast('Failed to paste from clipboard');
@@ -267,6 +273,18 @@ document.getElementById('importBtn').onclick = () => {
     } catch { showToast('Invalid Base64'); }
 };
 
+document.getElementById('decryptImportBtn').onclick = () => {
+    const v = document.getElementById('decryptKeyInput').value.trim();
+    if (!v) { showToast('Enter Base64 key'); return; }
+    try {
+        const raw = fromB64(v);
+        if (raw.byteLength !== 32) { showToast('Key must be 32 bytes'); return; }
+        crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt'])
+            .then(k => { activeKey = k; exportedKeyB64 = v; showToast('Key Imported'); })
+            .catch(e => showToast('Import Error'));
+    } catch { showToast('Invalid Base64'); }
+};
+
 // Password strength and visibility
 const pwInput = document.getElementById('pwInput');
 const pwStrength = document.getElementById('pwStrength');
@@ -330,17 +348,23 @@ async function decrypt() {
   if (!blobB64) { showToast('Paste blob'); return; }
   try {
     const meta = JSON.parse(atob(blobB64));
-    let keyToUse = activeKey;
+    let keyToUse;
+
+    // Check if the blob was encrypted with a password
     if (meta.salt) {
       const pw = document.getElementById('decryptPwInput').value;
       if (!pw) { showToast('Enter password'); return; }
       keyToUse = await deriveKeyArgon2(pw, fromB64(meta.salt), parseInt(document.getElementById('pwIters').value || 3));
+    } 
+    // Otherwise, check if a key has been imported
+    else if (exportedKeyB64) {
+        const raw = fromB64(exportedKeyB64);
+        keyToUse = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
     } else {
-        if (!activeKey) {
-            showToast('Please generate or import a key to decrypt.');
-            return;
-        }
+        showToast('Please import the key used for encryption.');
+        return;
     }
+
     const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(meta.iv) }, keyToUse, fromB64(meta.ct));
     document.getElementById('decrypted').value = dec.decode(ptBuf);
     showToast('Decryption Successful');
@@ -370,11 +394,18 @@ document.getElementById('showDecryptNavBtn').onclick = () => showSection('decryp
 // Add an event listener to the cipherInput textarea for dynamic password box
 document.getElementById('cipherInput').addEventListener('input', () => {
     const blobB64 = document.getElementById('cipherInput').value.trim();
+    document.getElementById('decryptPasswordBox').style.display = 'none';
+    document.getElementById('decryptKeySection').style.display = 'none';
+
     try {
         const meta = JSON.parse(atob(blobB64));
-        document.getElementById('decryptPasswordBox').style.display = meta.salt ? 'block' : 'none';
+        if (meta.salt) {
+            document.getElementById('decryptPasswordBox').style.display = 'block';
+        } else {
+            document.getElementById('decryptKeySection').style.display = 'block';
+        }
     } catch {
-        document.getElementById('decryptPasswordBox').style.display = 'none';
+        // If parsing fails, hide both
     }
 });
 
